@@ -15,6 +15,10 @@ Scaffold, deploy, and package sandboxed Lua RuneScape plugins — without leavin
   folder so you can test it in-game. *(Windows only)*
 - **Package for mod.io** — zips your plugin up, ready to upload to
   [mod.io/g/runescape](https://mod.io/g/runescape). *(Windows only)*
+- **RuneScape Plugin Icons** — an optional file icon theme with icons for `plugin.json`,
+  `.lua` files, and other common file types. Off by default; run **RuneScape: Manage
+  Icons...** from the Command Palette to enable/disable it and add your own icons for
+  any file extension, file name, or language.
 
 ## Getting started
 

@@ -1,0 +1,57 @@
+{
+  "file": "_file",
+  "folder": "_folder",
+  "folderExpanded": "_folder_open",
+  "iconDefinitions": {
+    "_file": {
+      "iconPath": "./defaults/file.svg"
+    },
+    "_folder": {
+      "iconPath": "./defaults/folder.svg"
+    },
+    "_folder_open": {
+      "iconPath": "./defaults/folder-open.svg"
+    },
+    "_lua": {
+      "iconPath": "./defaults/lua.svg"
+    },
+    "_json": {
+      "iconPath": "./defaults/json.svg"
+    },
+    "_js": {
+      "iconPath": "./defaults/js.svg"
+    },
+    "_md": {
+      "iconPath": "./defaults/md.svg"
+    },
+    "_license": {
+      "iconPath": "./defaults/license.svg"
+    },
+    "_ignore": {
+      "iconPath": "./defaults/ignore.svg"
+    },
+    "_plugin_manifest": {
+      "iconPath": "../../icon.png"
+    }
+  },
+  "fileExtensions": {
+    "lua": "_lua",
+    "json": "_json",
+    "jsonc": "_json",
+    "js": "_js",
+    "md": "_md"
+  },
+  "fileNames": {
+    "plugin.json": "_plugin_manifest",
+    "README.md": "_md",
+    "LICENSE": "_license",
+    ".gitignore": "_ignore"
+  },
+  "languageIds": {
+    "lua": "_lua",
+    "json": "_json",
+    "jsonc": "_json",
+    "javascript": "_js",
+    "markdown": "_md"
+  }
+}

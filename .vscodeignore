@@ -4,6 +4,7 @@
 scripts/**
 .idea/**
 .branding/**
+icons/theme/custom/**
 .gitignore
 .gitattributes
 package-lock.json

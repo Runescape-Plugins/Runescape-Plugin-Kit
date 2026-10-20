@@ -23,7 +23,11 @@
     "commands": [
       { "command": "runescape.newProject", "title": "New RuneScape Plugin Project", "category": "RuneScape" },
       { "command": "runescape.deployDev", "title": "Deploy to dev_plugins", "category": "RuneScape" },
-      { "command": "runescape.packageModio", "title": "Package for mod.io", "category": "RuneScape" }
+      { "command": "runescape.packageModio", "title": "Package for mod.io", "category": "RuneScape" },
+      { "command": "runescape.icons.manage", "title": "Manage Icons...", "category": "RuneScape" }
+    ],
+    "iconThemes": [
+      { "id": "runescape-icons", "label": "RuneScape Plugin Icons", "path": "./icons/theme/runescape-icon-theme.json" }
     ],
     "configuration": {
       "title": "RuneScape Plugin Kit",
@@ -33,6 +37,12 @@
           "enum": ["RuneScape-BETA", "RuneScape"],
           "default": "RuneScape-BETA",
           "description": "Which client's dev_plugins folder (under %ProgramData%\\Jagex) to deploy to."
+        },
+        "runescape.icons.customIcons": {
+          "type": "array",
+          "default": [],
+          "description": "Custom file icons for the RuneScape Plugin Icons theme. Managed automatically by the 'Set Custom File Icon...' and 'Remove Custom File Icon...' commands — edit by hand only if you know what you're doing.",
+          "items": { "type": "object" }
         }
       }
     },

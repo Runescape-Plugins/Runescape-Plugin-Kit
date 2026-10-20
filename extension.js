@@ -296,6 +296,236 @@ async function newProject(context) {
   }, undefined, context.subscriptions);
 }
 
+const ICON_THEME_MATCH_TYPES = [
+  { label: 'File extension', description: 'e.g. lua, json (matches any file ending in it)', value: 'fileExtensions' },
+  { label: 'Exact file name', description: 'e.g. plugin.json, README.md', value: 'fileNames' },
+  { label: 'Language ID', description: "e.g. lua, json (VS Code's detected language)", value: 'languageIds' }
+];
+
+function iconThemeDir(context) {
+  return path.join(context.extensionPath, 'icons', 'theme');
+}
+
+function customIconDir(context) {
+  return path.join(iconThemeDir(context), 'custom');
+}
+
+function getCustomIcons() {
+  return vscode.workspace.getConfiguration('runescape').get('icons.customIcons') || [];
+}
+
+function writeIconTheme(context) {
+  const base = JSON.parse(fs.readFileSync(path.join(context.extensionPath, 'icons', 'theme', 'runescape-icon-theme.base.json'), 'utf8'));
+  for (const custom of getCustomIcons()) {
+    base.iconDefinitions[custom.id] = { iconPath: `./custom/${custom.asset}` };
+    base[custom.matchType][custom.pattern] = custom.id;
+  }
+  fs.writeFileSync(path.join(iconThemeDir(context), 'runescape-icon-theme.json'), JSON.stringify(base, null, 2) + '\n');
+}
+
+function isIconThemeActive() {
+  return vscode.workspace.getConfiguration('workbench').get('iconTheme') === 'runescape-icons';
+}
+
+async function toggleIconTheme(context) {
+  const config = vscode.workspace.getConfiguration('workbench');
+  if (isIconThemeActive()) {
+    const previous = context.globalState.get('runescape.previousIconTheme');
+    await config.update('iconTheme', previous, vscode.ConfigurationTarget.Global);
+  } else {
+    await context.globalState.update('runescape.previousIconTheme', config.get('iconTheme'));
+    await config.update('iconTheme', 'runescape-icons', vscode.ConfigurationTarget.Global);
+  }
+}
+
+// Re-selecting the active icon theme makes VS Code re-read its JSON file from disk,
+// so the sidebar picks up edits without a full window reload.
+async function refreshIconTheme() {
+  if (!isIconThemeActive()) return;
+  const config = vscode.workspace.getConfiguration('workbench');
+  await config.update('iconTheme', null, vscode.ConfigurationTarget.Global);
+  await config.update('iconTheme', 'runescape-icons', vscode.ConfigurationTarget.Global);
+}
+
+async function addCustomIconFile(context, sourcePath, matchType, pattern) {
+  const id = `_custom_${slugify(pattern)}_${Date.now().toString(36)}`;
+  const asset = `${id}${path.extname(sourcePath)}`;
+  fs.mkdirSync(customIconDir(context), { recursive: true });
+  fs.copyFileSync(sourcePath, path.join(customIconDir(context), asset));
+
+  const customIcons = getCustomIcons();
+  customIcons.push({ id, matchType, pattern: pattern.trim(), asset });
+  await vscode.workspace.getConfiguration('runescape').update('icons.customIcons', customIcons, vscode.ConfigurationTarget.Global);
+  writeIconTheme(context);
+}
+
+async function removeCustomIconFile(context, id) {
+  const customIcons = getCustomIcons();
+  const target = customIcons.find((custom) => custom.id === id);
+  if (!target) return;
+  fs.rmSync(path.join(customIconDir(context), target.asset), { force: true });
+  const remaining = customIcons.filter((custom) => custom.id !== id);
+  await vscode.workspace.getConfiguration('runescape').update('icons.customIcons', remaining, vscode.ConfigurationTarget.Global);
+  writeIconTheme(context);
+}
+
+const ICON_MIME_TYPES = { '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp' };
+
+function dataUriForFile(absPath) {
+  const mime = ICON_MIME_TYPES[path.extname(absPath).toLowerCase()] || 'application/octet-stream';
+  return `data:${mime};base64,${fs.readFileSync(absPath).toString('base64')}`;
+}
+
+function iconsManagerHtml(nonce, cspSource, iconUri, active, customIcons, pendingPreview) {
+  const matchTypeOptions = ICON_THEME_MATCH_TYPES.map((m) => `<option value="${m.value}">${escapeHtml(m.label)} — ${escapeHtml(m.description)}</option>`).join('');
+  const rows = customIcons.length
+    ? customIcons.map((c) => `
+      <div class="iconRow">
+        <img src="${c.dataUri}" alt="">
+        <div class="iconMeta"><span class="pattern">${escapeHtml(c.pattern)}</span><span class="matchType">${escapeHtml(c.matchType)}</span></div>
+        <button type="button" class="secondary remove" data-id="${escapeHtml(c.id)}">Remove</button>
+      </div>`).join('')
+    : `<div class="empty">No custom icons yet.</div>`;
+  const previewBlock = pendingPreview
+    ? `<img src="${pendingPreview.dataUri}" alt="" class="previewImg"><span>${escapeHtml(pendingPreview.name)}</span>`
+    : `<span class="hintText">No file selected.</span>`;
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src ${cspSource} data:; script-src 'nonce-${nonce}';">
+<style>
+  body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); padding: 16px 24px; max-width: 560px; }
+  h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; }
+  h2 img { width: 28px; height: 28px; border-radius: 6px; }
+  .section { margin: 18px 0; padding-top: 12px; border-top: 1px solid var(--vscode-panel-border, #444); }
+  .section > .title { font-weight: 600; margin-bottom: 8px; }
+  .statusRow { display: flex; align-items: center; gap: 12px; }
+  .status { color: var(--vscode-descriptionForeground); }
+  .iconRow { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+  .iconRow img { width: 24px; height: 24px; border-radius: 4px; }
+  .iconMeta { flex: 1; display: flex; flex-direction: column; }
+  .iconMeta .pattern { font-weight: 600; }
+  .iconMeta .matchType { font-size: 0.85em; color: var(--vscode-descriptionForeground); }
+  .empty { color: var(--vscode-descriptionForeground); font-style: italic; }
+  .addForm { display: flex; flex-direction: column; gap: 10px; }
+  .addForm .row { display: flex; align-items: center; gap: 10px; }
+  .previewImg { width: 32px; height: 32px; border-radius: 4px; }
+  .hintText { color: var(--vscode-descriptionForeground); }
+  select, input[type=text] { box-sizing: border-box; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, #555); padding: 4px 6px; border-radius: 2px; flex: 1; }
+  button { padding: 6px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: 0; cursor: pointer; border-radius: 2px; }
+  button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+  button:hover { background: var(--vscode-button-hoverBackground); }
+  #formError { color: var(--vscode-errorForeground); margin-top: 4px; }
+</style></head>
+<body>
+<h2><img src="${iconUri}" alt="">RuneScape Icon Theme</h2>
+
+<div class="section statusRow">
+  <span class="status">${active ? 'RuneScape Plugin Icons is active.' : 'RuneScape Plugin Icons is not the active File Icon Theme.'}</span>
+  <button type="button" id="toggleTheme">${active ? 'Disable' : 'Enable'}</button>
+</div>
+
+<div class="section">
+  <div class="title">Custom Icons</div>
+  <div id="iconList">${rows}</div>
+</div>
+
+<div class="section">
+  <div class="title">Add Custom Icon</div>
+  <div class="addForm">
+    <div class="row">
+      <button type="button" id="browse" class="secondary">Browse...</button>
+      <span id="preview">${previewBlock}</span>
+    </div>
+    <div class="row">
+      <select id="matchType">${matchTypeOptions}</select>
+    </div>
+    <div class="row">
+      <input type="text" id="pattern" placeholder="e.g. lua, plugin.json">
+      <button type="button" id="add">Add Icon</button>
+    </div>
+    <div id="formError"></div>
+  </div>
+</div>
+
+<script nonce="${nonce}">
+  const vscode = acquireVsCodeApi();
+  document.getElementById('toggleTheme').addEventListener('click', () => vscode.postMessage({ toggleTheme: true }));
+  document.getElementById('browse').addEventListener('click', () => vscode.postMessage({ browse: true }));
+  document.getElementById('add').addEventListener('click', () => {
+    vscode.postMessage({
+      add: { matchType: document.getElementById('matchType').value, pattern: document.getElementById('pattern').value.trim() }
+    });
+  });
+  document.querySelectorAll('.remove').forEach((btn) => {
+    btn.addEventListener('click', () => vscode.postMessage({ remove: { id: btn.dataset.id } }));
+  });
+  window.addEventListener('message', (event) => {
+    document.getElementById('formError').textContent = event.data.error || '';
+  });
+</script>
+</body></html>`;
+}
+
+async function manageIcons(context) {
+  const panel = vscode.window.createWebviewPanel('runescapeIconsManager', 'RuneScape Icons', vscode.ViewColumn.Active, { enableScripts: true });
+  const iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
+  panel.iconPath = iconPath;
+  let pendingPreview = null;
+
+  const render = () => {
+    const nonce = require('crypto').randomBytes(16).toString('hex');
+    const iconUri = panel.webview.asWebviewUri(iconPath);
+    const customIcons = getCustomIcons().map((custom) => ({ ...custom, dataUri: dataUriForFile(path.join(customIconDir(context), custom.asset)) }));
+    panel.webview.html = iconsManagerHtml(nonce, panel.webview.cspSource, iconUri, isIconThemeActive(), customIcons, pendingPreview);
+  };
+
+  panel.webview.onDidReceiveMessage(async (msg) => {
+    if (msg.toggleTheme) {
+      await toggleIconTheme(context);
+      render();
+      return;
+    }
+
+    if (msg.browse) {
+      const picked = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        openLabel: 'Select icon image',
+        filters: { Images: ['svg', 'png', 'jpg', 'jpeg', 'gif', 'webp'] }
+      });
+      if (picked && picked.length > 0) {
+        pendingPreview = { path: picked[0].fsPath, name: path.basename(picked[0].fsPath), dataUri: dataUriForFile(picked[0].fsPath) };
+        render();
+      }
+      return;
+    }
+
+    if (msg.add) {
+      if (!pendingPreview) {
+        panel.webview.postMessage({ error: 'Choose an icon image first.' });
+        return;
+      }
+      if (!msg.add.pattern) {
+        panel.webview.postMessage({ error: 'Enter a file extension, file name, or language ID to match.' });
+        return;
+      }
+      await addCustomIconFile(context, pendingPreview.path, msg.add.matchType, msg.add.pattern);
+      pendingPreview = null;
+      await refreshIconTheme();
+      render();
+      return;
+    }
+
+    if (msg.remove) {
+      await removeCustomIconFile(context, msg.remove.id);
+      await refreshIconTheme();
+      render();
+    }
+  }, undefined, context.subscriptions);
+
+  render();
+}
+
 function pluginRoot() {
   const folder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
   return folder ? folder.uri.fsPath : null;
@@ -420,10 +650,12 @@ async function packageModio() {
 }
 
 function activate(context) {
+  writeIconTheme(context);
   context.subscriptions.push(
     vscode.commands.registerCommand('runescape.newProject', () => newProject(context)),
     vscode.commands.registerCommand('runescape.deployDev', () => deployDev()),
-    vscode.commands.registerCommand('runescape.packageModio', () => packageModio())
+    vscode.commands.registerCommand('runescape.packageModio', () => packageModio()),
+    vscode.commands.registerCommand('runescape.icons.manage', () => manageIcons(context))
   );
 }
 
