@@ -1,0 +1,22 @@
+{
+    // Known plugin permissions, offered as toggles ("New RuneScape Plugin Project" >
+    // Permissions) instead of typing them by hand. See
+    // https://developer.runescape.com/rs/core/plugin.html#pluginpermissions for the
+    // authoritative list — maintained by hand here since there's no catalog API for it.
+    //
+    // key          = permission name used in plugin.json
+    // description  = short blurb shown as a tooltip in the form
+    // docs         = optional link shown next to the entry in the form
+    "httpAccess": {
+        "description": "Allows the use of HTTP-related functionality, using the base URLs declared in the plugin's manifest.",
+        "docs": "https://developer.runescape.com/rs/core/plugin.html#pluginpermissions"
+    },
+    "chatAccess": {
+        "description": "Allows the use of Chat-related functionality.",
+        "docs": "https://developer.runescape.com/rs/core/plugin.html#pluginpermissions"
+    },
+    "trackingAccess": {
+        "description": "Allows the use of Tracking ID-related functionality.",
+        "docs": "https://developer.runescape.com/rs/core/plugin.html#pluginpermissions"
+    }
+}

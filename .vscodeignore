@@ -1,0 +1,10 @@
+.vscode/**
+*.vsix
+.github/**
+scripts/**
+.idea/**
+.branding/**
+.gitignore
+.gitattributes
+package-lock.json
+CONTRIBUTING.md

@@ -1,0 +1,54 @@
+{
+  "name": "runescape-plugin-kit",
+  "displayName": "RuneScape Plugin Kit",
+  "description": "Scaffold sandboxed Lua RuneScape plugins.",
+  "version": "0.1.0",
+  "publisher": "mark7625",
+  "icon": "icon.png",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Runescape-Plugins/Runescape-Plugin-Kit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Runescape-Plugins/Runescape-Plugin-Kit/issues"
+  },
+  "homepage": "https://github.com/Runescape-Plugins/Runescape-Plugin-Kit#readme",
+  "keywords": ["runescape", "rs3", "lua", "plugin", "scaffold"],
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Other"],
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      { "command": "runescape.newProject", "title": "New RuneScape Plugin Project", "category": "RuneScape" },
+      { "command": "runescape.deployDev", "title": "Deploy to dev_plugins", "category": "RuneScape" },
+      { "command": "runescape.packageModio", "title": "Package for mod.io", "category": "RuneScape" }
+    ],
+    "configuration": {
+      "title": "RuneScape Plugin Kit",
+      "properties": {
+        "runescape.devClient": {
+          "type": "string",
+          "enum": ["RuneScape-BETA", "RuneScape"],
+          "default": "RuneScape-BETA",
+          "description": "Which client's dev_plugins folder (under %ProgramData%\\Jagex) to deploy to."
+        }
+      }
+    },
+    "viewsWelcome": [
+      {
+        "view": "explorer",
+        "contents": "[New RuneScape Plugin](command:runescape.newProject)",
+        "when": "workbenchState == empty"
+      }
+    ]
+  },
+  "scripts": {
+    "package": "vsce package --no-dependencies",
+    "publish": "vsce publish --no-dependencies"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.0.0"
+  }
+}

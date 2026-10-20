@@ -1,0 +1,68 @@
+name: vendors-sync
+
+# Looks for mods tagged "library" in the RuneScape game on mod.io and opens/updates a
+# pull request adding any not already in dependencies.jsonc. Never commits directly and
+# never changes or removes existing entries - see scripts/sync-vendors.js. Merging the
+# PR triggers release.yml as normal, since it touches dependencies.jsonc.
+#
+# Needs a MODIO_API_KEY repository secret (a mod.io API key).
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # weekly, Monday 06:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: vendors-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Fetch RuneScape library mods from mod.io
+        env:
+          MODIO_API_KEY: ${{ secrets.MODIO_API_KEY }}
+        run: node scripts/sync-vendors.js
+
+      - name: Open or update the sync pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          if git diff --quiet -- dependencies.jsonc; then
+            echo "No new library plugins found."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B sync/modio-vendors
+          git add dependencies.jsonc
+          git commit -m "chore: sync library plugins from mod.io"
+          git push --force origin sync/modio-vendors
+
+          {
+            echo 'Adds the following mods newly tagged "library" for RuneScape on mod.io:'
+            echo
+            cat scripts/sync-summary.txt
+            echo
+            echo 'Existing entries in dependencies.jsonc are never changed or removed by this sync.'
+          } > pr-body.md
+
+          number=$(gh pr list --head sync/modio-vendors --base "$BASE" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$number" ]; then
+            gh pr create --head sync/modio-vendors --base "$BASE" --title "Sync library plugins from mod.io" --body-file pr-body.md
+          else
+            gh pr edit "$number" --body-file pr-body.md
+          fi

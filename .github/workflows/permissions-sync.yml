@@ -1,0 +1,66 @@
+name: permissions-sync
+
+# Scrapes the PluginPermissions table from Jagex's own docs and opens/updates a pull
+# request adding any permission not already in permissions.jsonc. Never commits directly
+# and never changes or removes existing entries - see scripts/sync-permissions.js.
+# Merging the PR triggers release.yml as normal, since it touches permissions.jsonc.
+#
+# No secrets needed - it's a public docs page.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # weekly, Monday 06:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: permissions-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Scrape plugin permissions from Jagex's docs
+        run: node scripts/sync-permissions.js
+
+      - name: Open or update the sync pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          if git diff --quiet -- permissions.jsonc; then
+            echo "No new permissions found."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B sync/permissions
+          git add permissions.jsonc
+          git commit -m "chore: sync plugin permissions from Jagex's docs"
+          git push --force origin sync/permissions
+
+          {
+            echo 'Adds the following newly documented plugin permissions:'
+            echo
+            cat scripts/permissions-sync-summary.txt
+            echo
+            echo 'Existing entries in permissions.jsonc are never changed or removed by this sync.'
+          } > pr-body.md
+
+          number=$(gh pr list --head sync/permissions --base "$BASE" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$number" ]; then
+            gh pr create --head sync/permissions --base "$BASE" --title "Sync plugin permissions from Jagex's docs" --body-file pr-body.md
+          else
+            gh pr edit "$number" --body-file pr-body.md
+          fi

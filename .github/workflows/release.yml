@@ -1,0 +1,88 @@
+name: release
+
+# Runs after a merge to main/master touches dependencies.jsonc or permissions.jsonc (the
+# hand-maintained catalogs). Dumps them to comment-free .json siblings, commits that back,
+# bumps the extension's patch version, tags and creates a GitHub release, and (if a
+# VSCE_PAT secret is configured) publishes the new version to the VS Code Marketplace
+# so installs auto-update.
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - dependencies.jsonc
+      - permissions.jsonc
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Dump dependencies.jsonc and permissions.jsonc to their comment-free .json siblings
+        run: |
+          node -e "
+            const fs = require('fs');
+            for (const name of ['dependencies', 'permissions']) {
+              const raw = fs.readFileSync(name + '.jsonc', 'utf8');
+              const stripped = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*\$/gm, '');
+              fs.writeFileSync(name + '.json', JSON.stringify(JSON.parse(stripped), null, 2) + '\n');
+            }
+          "
+
+      - name: Bump the extension's patch version
+        id: version
+        run: |
+          version=$(node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            const parts = pkg.version.split('.').map(Number);
+            parts[2] += 1;
+            pkg.version = parts.join('.');
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log(pkg.version);
+          ")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Commit the dump and version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dependencies.json permissions.json package.json
+          git commit -m "chore: release v${{ steps.version.outputs.version }}"
+          git push
+
+      - name: Install dependencies and package the extension
+        run: |
+          npm ci
+          npm run package
+
+      - name: Tag and create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+          gh release create "v$VERSION" dependencies.json permissions.json *.vsix --title "v$VERSION" --generate-notes
+
+      - name: Publish to the VS Code Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        if: env.VSCE_PAT != ''
+        run: npx vsce publish --no-dependencies -p "$VSCE_PAT"

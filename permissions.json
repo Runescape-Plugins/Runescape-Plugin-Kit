@@ -1,0 +1,14 @@
+{
+  "httpAccess": {
+    "description": "Allows the use of HTTP-related functionality, using the base URLs declared in the plugin's manifest.",
+    "docs": "https://developer.runescape.com/rs/core/plugin.html#pluginpermissions"
+  },
+  "chatAccess": {
+    "description": "Allows the use of Chat-related functionality.",
+    "docs": "https://developer.runescape.com/rs/core/plugin.html#pluginpermissions"
+  },
+  "trackingAccess": {
+    "description": "Allows the use of Tracking ID-related functionality.",
+    "docs": "https://developer.runescape.com/rs/core/plugin.html#pluginpermissions"
+  }
+}

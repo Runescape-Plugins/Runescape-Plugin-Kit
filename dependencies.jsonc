@@ -1,0 +1,17 @@
+{
+    // Known plugins that other plugins can declare as a dependency, offered
+    // as toggles ("New RuneScape Plugin Project" > Dependencies) instead of
+    // typing them by hand. There's no public catalog API for this, so it's
+    // maintained by hand here.
+    //
+    // key          = name used in plugin.json / require() for this dependency
+    // id           = the dependency plugin's published ID
+    // description  = short blurb shown as a tooltip in the form
+    // docs, modio  = optional links shown next to the entry in the form
+    "prettyui": {
+        "id": 6398181,
+        "description": "A UI library that makes it easy to craft native-looking interfaces for your RuneScape API plugins.",
+        "docs": "https://prettyui.j3.gg/",
+        "modio": "https://mod.io/g/runescape/m/prettyui#description"
+    }
+}
